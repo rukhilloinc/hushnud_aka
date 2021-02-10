@@ -18,13 +18,19 @@ diff(date, price)
 
 
 class Cross:
-    def __init__(self, data, SMA):
-        self.sma20 = SMA['20']
-        self.sma50 = SMA['50']
-        self.sma200 = SMA['200']
+    def __init__(self, data):
         for i in data:
-            self.close = i['Close']
-            self.date = i['Date']
+            if 'sma20' in data:
+                self.sma20 = i['sma20']['sma20']
+                self.close = i['Close']
+                self.date = i['Date']
+            elif 'sma50' in data:
+                self.sma50 = i['sma50']
+            elif 'sma200' in data:
+                self.sma200 = i['sma200']
+            else:
+                pass
+
 
     def golden_cross(self):
         crosses = []
