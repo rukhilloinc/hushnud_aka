@@ -1,0 +1,60 @@
+import time
+import requests
+
+KEY = '24a98915b189bb0763b191285b7abb27'
+
+
+def get_data(symbol, period):
+    uri = f"https://financialmodelingprep.com/api/v3/technical_indicator/daily/{symbol}?period={period}&type=sma&apikey={KEY}"
+    r = requests.get(uri)
+    return r.json()
+
+
+def manipulated_data(symbol):
+    s50 = []
+    s200 = []
+    sma50 = get_data(symbol, '50')
+    sma200 = get_data(symbol, '200')
+    time.sleep(5)
+    if sma50 is not None:
+        for i in sma50:
+            s50.append({'date': i['date'], 'close': i['close'], 'sma50': i['sma']})
+    if sma200 is not None:
+        for i in sma200:
+            s200.append({'date': i['date'], 'close': i['close'], 'sma200': i['sma']})
+    return s50, s200
+
+
+def golden_cross(symbol):
+    date = []
+    for i in manipulated_data(symbol)[0]:
+        for y in manipulated_data(symbol)[1]:
+            if i['date'] is not None and y['date'] is not None:
+                if i['date'] == y['date']:
+                    date.append([i['date'], i['sma50'], y['sma200'], i['close']])
+    d = sorted(date)
+    starting_data = d.pop(0)
+    bullish = (starting_data[1] - starting_data[2]) > 0
+    ready = []
+    for i in d:
+        if i[1] > i[2] and bullish is False:
+            ready.append({'symbol': symbol, 'cross': 'up', 'date': i[0], 'sma50': i[1], 'sma200': i[2], 'close': i[3]})
+            bullish = True
+        elif i[1] < i[2] and bullish is True:
+            ready.append(
+                {'symbol': symbol, 'cross': 'down', 'date': i[0], 'sma50': i[1], 'sma200': i[2], 'close': i[3]})
+            bullish = False
+        elif i[3] < i[1]:
+            ready.append(
+                {'symbol': symbol, 'cross': 'closed_down', 'date': i[0], 'sma50': i[1], 'sma200': i[2], 'close': i[3]})
+        else:
+            pass
+    return ready
+
+
+try:
+
+    print(golden_cross('AAPL'))
+
+except:
+    pass
