@@ -1,4 +1,9 @@
 import time
+from google.oauth2.service_account import Credentials
+import gspread
+import gspread_dataframe as gd
+import pandas
+
 import requests
 
 KEY = '24a98915b189bb0763b191285b7abb27'
@@ -22,39 +27,85 @@ def manipulated_data(symbol):
     if sma200 is not None:
         for i in sma200:
             s200.append({'date': i['date'], 'close': i['close'], 'sma200': i['sma']})
-    return s50, s200
-
-
-def golden_cross(symbol):
     date = []
-    for i in manipulated_data(symbol)[0]:
-        for y in manipulated_data(symbol)[1]:
+    for i in s50:
+        for y in s200:
             if i['date'] is not None and y['date'] is not None:
                 if i['date'] == y['date']:
                     date.append([i['date'], i['sma50'], y['sma200'], i['close']])
     d = sorted(date)
     starting_data = d.pop(0)
     bullish = (starting_data[1] - starting_data[2]) > 0
+    close_under50 = (starting_data[3] < starting_data[1])
     ready = []
     for i in d:
         if i[1] > i[2] and bullish is False:
             ready.append({'symbol': symbol, 'cross': 'up', 'date': i[0], 'sma50': i[1], 'sma200': i[2], 'close': i[3]})
             bullish = True
+            close_under50 = False
         elif i[1] < i[2] and bullish is True:
             ready.append(
                 {'symbol': symbol, 'cross': 'down', 'date': i[0], 'sma50': i[1], 'sma200': i[2], 'close': i[3]})
             bullish = False
-        elif i[3] < i[1]:
+        if i[3] < i[1] and close_under50 is False and bullish is True:
             ready.append(
                 {'symbol': symbol, 'cross': 'closed_down', 'date': i[0], 'sma50': i[1], 'sma200': i[2], 'close': i[3]})
+            close_under50 = True
+        elif i[3] > i[1] and close_under50 is True:
+            pass
+            # close_under50 = False
+
         else:
             pass
-    return ready
+    cl = []
+    up = []
+    for i in ready:
+        if i['cross'] == 'closed_down':
+            cl.append(i)
+        if i['cross'] == 'up':
+            up.append(i)
+    diff = []
+    for i in range(len(up)):
+        diff_close = up[i]['close'] - cl[i]['close']
+        diff.append({'symbol': up[i]['symbol'], 'cross_up_date': up[i]['date'], 'close_down_date': cl[i]['date'],
+                     'cross_up_close': up[i]['close'], 'close_down_close': cl[i]['close'],
+                     'diff_cross_up_close_down': diff_close})
+
+    df = pandas.DataFrame(diff)
+    return diff
 
 
-try:
+def write_google_sheets(data):
+    scopes = [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive'
+    ]
 
-    print(golden_cross('AAPL'))
+    credentials = Credentials.from_service_account_file(
+        'C:/Users/russr/Desktop/interactive_brokers/regal-eye-250617-e4a750c7ae87.json',
+        scopes=scopes
+    )
 
-except:
-    pass
+    gc = gspread.authorize(credentials)
+
+    sh = gc.open_by_key('12521tIMY-gNN0MuMA1bBhD-qSYFNdTqAl6zMpRoycYI')
+    worksheet = sh.get_worksheet(1)
+    gd.set_with_dataframe(worksheet, data)
+    # existing = gd.get_as_dataframe(worksheet)
+    # print(type(data))
+    # updated = existing.append(worksheet, data)
+    # gd.set_with_dataframe(worksheet, updated)
+    print('Excel sheet is written')
+    return True
+
+
+def complete():
+    d = ['AAPL', 'FB']
+    df = []
+    for i in d:
+        data = manipulated_data(i)
+        df.append(pandas.DataFrame(data, columns=None))
+
+    print(df)
+    
+complete()
